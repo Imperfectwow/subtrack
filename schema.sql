@@ -7,7 +7,6 @@
 create extension if not exists "uuid-ossp";
 create extension if not exists "postgis"; -- לחישוב מרחקים גיאוגרפיים
 
-
 -- ============================================================
 -- 1. ENUMS — סוגי ערכים קבועים
 -- ============================================================
@@ -671,7 +670,6 @@ alter table municipalities
 alter table whatsapp_logs
   add column error_message text,
   add column retry_count   int not null default 0;
-
 
 -- ============================================================
 -- סיום
