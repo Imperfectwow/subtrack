@@ -7,6 +7,7 @@
 create extension if not exists "uuid-ossp";
 create extension if not exists "postgis"; -- לחישוב מרחקים גיאוגרפיים
 
+
 -- ============================================================
 -- 1. ENUMS — סוגי ערכים קבועים
 -- ============================================================
@@ -30,6 +31,7 @@ create type absence_status as enum (
 create type assignment_status as enum (
   'offered',       -- הצעה נשלחה
   'accepted',      -- מסייעת קיבלה
+  'confirmed',     -- שיבוץ סופי אושר
   'declined',      -- מסייעת דחתה
   'expired',       -- פג תוקף (לא ענתה תוך X דקות)
   'cancelled'
@@ -279,7 +281,6 @@ create trigger trg_update_rating after insert on ratings for each row execute fu
 create or replace function find_available_assistants(
   p_school_id     uuid,
   p_subject       text,
-  p_grade         text default null,
   p_radius_km     float default 5.0,
   p_limit         int default 10
 )
@@ -291,17 +292,13 @@ returns table (
   rating          numeric,
   distance_km     numeric,
   subjects        text[],
-  grades          text[],
   match_score     numeric
 ) as $$
 declare
-  v_school_location  geography;
-  v_municipality_id  uuid;
+  v_school_location geography;
 begin
-  -- קבל את מיקום ורשות בית הספר
-  select s.location, s.municipality_id
-  into v_school_location, v_municipality_id
-  from schools s where s.id = p_school_id;
+  -- קבל את מיקום בית הספר
+  select location into v_school_location from schools where id = p_school_id;
 
   return query
   select
@@ -312,20 +309,16 @@ begin
     a.rating,
     round((st_distance(a.current_location, v_school_location) / 1000)::numeric, 2) as distance_km,
     a.subjects,
-    a.grades,
-    -- ניקוד משוקלל: 40% מרחק, 30% דירוג, 20% התאמת מקצוע, 10% התאמת כיתה
+    -- ניקוד משוקלל: 50% מרחק, 30% דירוג, 20% התאמת מקצוע
     round((
-      (1 - least(st_distance(a.current_location, v_school_location) / 1000, p_radius_km) / p_radius_km) * 40
+      (1 - least(st_distance(a.current_location, v_school_location) / 1000, p_radius_km) / p_radius_km) * 50
       + (a.rating / 5.0) * 30
       + (case when p_subject = any(a.subjects) then 1 else 0 end) * 20
-      + (case when p_grade is null or p_grade = any(a.grades) then 1 else 0 end) * 10
     )::numeric, 2) as match_score
   from assistants a
   join profiles p on p.id = a.id
   where
-    a.municipality_id = v_municipality_id        -- multi-tenant: רק מסייעות מאותה רשות
-    and a.current_location is not null           -- מניעת שגיאת NULL בחישוב מרחק
-    and a.is_available = true
+    a.is_available = true
     and p.is_active = true
     and st_dwithin(a.current_location, v_school_location, p_radius_km * 1000)
   order by match_score desc
@@ -421,260 +414,9 @@ insert into schools (municipality_id, name, address, location) values
 
 
 -- ============================================================
--- 13. SCHEMA IMPROVEMENTS — תיקונים ושיפורים
--- ============================================================
-
-
--- ── A. ENUM חדש לערוץ דיווח ──────────────────────────────────
-create type report_channel as enum ('app', 'whatsapp', 'phone', 'web');
-
--- החלף את העמודה הטקסטואלית ב-ENUM
-alter table absences
-  alter column reported_via drop default;
-
-alter table absences
-  alter column reported_via type report_channel
-  using reported_via::report_channel;
-
-alter table absences
-  alter column reported_via set default 'app';
-
-
--- ── B. אילוץ: שעת סיום > שעת התחלה ──────────────────────────
-alter table absences
-  add constraint chk_absence_time
-  check (end_time is null or end_time > start_time);
-
-
--- ── C. מניעת שיבוץ כפול מאושר לאותה היעדרות ─────────────────
-create unique index idx_one_accepted_per_absence
-  on assignments(absence_id)
-  where status in ('accepted', 'confirmed');
-
-
--- ── D. מדיניות RLS חסרה — INSERT ────────────────────────────
-
--- MUNICIPALITIES
-create policy "super_admin inserts municipality"
-  on municipalities for insert
-  with check (my_role() = 'super_admin');
-
--- SCHOOLS
-create policy "admin inserts school"
-  on schools for insert
-  with check (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
-
--- PROFILES (כל משתמש מחובר יכול ליצור פרופיל לעצמו)
-create policy "user inserts own profile"
-  on profiles for insert
-  with check (id = auth.uid());
-
--- ASSISTANTS (admin יכול לרשום מסייעת ברשות שלו)
-create policy "admin inserts assistant"
-  on assistants for insert
-  with check (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
-
--- WHATSAPP_LOGS (מערכת בלבד — service_role מדלג על RLS; coordinator/admin לתיעוד ידני)
-create policy "admin inserts whatsapp log"
-  on whatsapp_logs for insert
-  with check (my_role() in ('super_admin', 'admin', 'coordinator'));
-
-
--- ── E. תיקון שמות מדיניות כפולים ב-municipalities ───────────
--- מוחקים את המדיניות הישנה ומגדירים מחדש בשמות ייחודיים
-drop policy if exists "super_admin sees all" on municipalities;
-drop policy if exists "super_admin manages"  on municipalities;
-
-create policy "super_admin_select_municipalities"
-  on municipalities for select
-  using (my_role() = 'super_admin');
-
-create policy "super_admin_all_municipalities"
-  on municipalities for all
-  using (my_role() = 'super_admin');
-
-
--- ── F. עמודות מעקב ביטול ────────────────────────────────────
-
--- absences
-alter table absences
-  add column cancelled_by        uuid references profiles(id) on delete set null,
-  add column cancellation_reason text,
-  add column cancelled_at        timestamptz;
-
--- assignments
-alter table assignments
-  add column accepted_at         timestamptz,
-  add column cancelled_by        uuid references profiles(id) on delete set null,
-  add column cancellation_reason text,
-  add column cancelled_at        timestamptz;
-
-
--- ── G. updated_at ב-assignments ──────────────────────────────
-alter table assignments
-  add column updated_at timestamptz not null default now();
-
-create trigger trg_assignments_updated
-  before update on assignments
-  for each row execute function update_updated_at();
-
-
--- ── H. טבלאות חדשות ─────────────────────────────────────────
-
--- קישור רכזים לבתי ספר
-create table school_coordinators (
-  school_id      uuid not null references schools(id) on delete cascade,
-  coordinator_id uuid not null references profiles(id) on delete cascade,
-  created_at     timestamptz not null default now(),
-  primary key (school_id, coordinator_id)
-);
-
-alter table school_coordinators enable row level security;
-
-create policy "see school coordinators in municipality"
-  on school_coordinators for select
-  using (
-    my_role() in ('super_admin', 'admin', 'coordinator')
-    and exists (
-      select 1 from schools s
-      where s.id = school_id
-        and (s.municipality_id = my_municipality_id() or my_role() = 'super_admin')
-    )
-  );
-
-create policy "admin manages school coordinators"
-  on school_coordinators for all
-  using (
-    my_role() in ('super_admin', 'admin')
-    and exists (
-      select 1 from schools s
-      where s.id = school_id
-        and (s.municipality_id = my_municipality_id() or my_role() = 'super_admin')
-    )
-  );
-
-
--- תשלומים
-create table payroll_records (
-  id              uuid primary key default uuid_generate_v4(),
-  assignment_id   uuid not null references assignments(id) on delete restrict,
-  assistant_id    uuid not null references assistants(id) on delete restrict,
-  municipality_id uuid not null references municipalities(id) on delete cascade,
-  amount          numeric(8,2) not null check (amount >= 0),
-  currency        text not null default 'ILS',
-  status          text not null default 'pending'
-                  check (status in ('pending', 'paid', 'failed')),
-  paid_at         timestamptz,
-  external_ref    text,
-  notes           text,
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
-);
-
-alter table payroll_records enable row level security;
-
-create index idx_payroll_assistant  on payroll_records(assistant_id);
-create index idx_payroll_assignment on payroll_records(assignment_id);
-create index idx_payroll_status     on payroll_records(municipality_id, status);
-
-create trigger trg_payroll_updated
-  before update on payroll_records
-  for each row execute function update_updated_at();
-
-create policy "admin sees payroll in municipality"
-  on payroll_records for select
-  using (municipality_id = my_municipality_id() or my_role() = 'super_admin');
-
-create policy "admin manages payroll"
-  on payroll_records for all
-  using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
-
-
--- לוח זמינות שבועי
-create table availability_schedules (
-  id            uuid primary key default uuid_generate_v4(),
-  assistant_id  uuid not null references assistants(id) on delete cascade,
-  day_of_week   int not null check (day_of_week between 0 and 6),  -- 0=ראשון
-  start_time    time not null,
-  end_time      time not null,
-  is_active     boolean not null default true,
-  constraint chk_avail_time check (end_time > start_time),
-  created_at    timestamptz not null default now()
-);
-
-alter table availability_schedules enable row level security;
-
-create index idx_avail_assistant on availability_schedules(assistant_id, day_of_week) where is_active = true;
-
-create policy "assistant sees own availability"
-  on availability_schedules for select
-  using (assistant_id = auth.uid() or my_role() in ('super_admin', 'admin', 'coordinator'));
-
-create policy "assistant manages own availability"
-  on availability_schedules for all
-  using (assistant_id = auth.uid());
-
-create policy "admin manages availability"
-  on availability_schedules for all
-  using (my_role() in ('super_admin', 'admin'));
-
-
--- ── I. אינדקסים מורכבים לביצועים ─────────────────────────────
-
--- שאילתת לוח בוקר: היעדרויות פתוחות לפי רשות ותאריך
-create index idx_absences_muni_date_status
-  on absences(municipality_id, absence_date, status);
-
--- עבודת רקע: מציאת הצעות שפג תוקפן
-create index idx_assignments_expires_status
-  on assignments(expires_at, status)
-  where status = 'offered';
-
--- חיפוש מסייעות זמינות
-create index idx_assistants_muni_available
-  on assistants(municipality_id, is_available)
-  where is_available = true;
-
--- היסטוריית שיחת וואטסאפ לפי משתמש
-create index idx_whatsapp_profile_time
-  on whatsapp_logs(profile_id, created_at desc);
-
--- דירוגים לפי מסייעת
-create index idx_ratings_assistant
-  on ratings(assistant_id, created_at desc);
-
--- שיבוצים פתוחים לפי מסייעת
-create index idx_assignments_assistant_status
-  on assignments(assistant_id, status, offered_at)
-  where status in ('offered', 'accepted');
-
-
--- ── J. אילוצי ייחודיות עסקיים ────────────────────────────────
-
--- שם בית ספר ייחודי ברשות
-create unique index idx_schools_unique_name
-  on schools(municipality_id, name);
-
--- מניעת דיווח כפול על אותה היעדרות
-create unique index idx_absences_no_duplicate
-  on absences(school_id, absence_date, subject, grade, start_time)
-  where status not in ('cancelled');
-
--- פורמט slug תקין
-alter table municipalities
-  add constraint chk_slug_format
-  check (slug ~ '^[a-z0-9-]+$');
-
-
--- ── K. שיפורים ל-whatsapp_logs ───────────────────────────────
-alter table whatsapp_logs
-  add column error_message text,
-  add column retry_count   int not null default 0;
-
--- ============================================================
 -- סיום
 -- ============================================================
---
+-- 
 -- שלבים הבאים:
 -- 1. הרץ את הסקריפט הזה ב-Supabase SQL Editor
 -- 2. צור משתמשים דרך Supabase Auth (Dashboard > Authentication > Users)
