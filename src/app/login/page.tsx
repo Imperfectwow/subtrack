@@ -5,11 +5,12 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [email, setEmail]             = useState('')
+  const [password, setPassword]       = useState('')
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [isSignUp, setIsSignUp]       = useState(false)
+  const [confirmSent, setConfirmSent] = useState(false)
 
   const router   = useRouter()
   const supabase = createClient()
@@ -26,8 +27,8 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push('/dashboard')
-      router.refresh()
+      setLoading(false)
+      setConfirmSent(true)
       return
     }
 
@@ -101,6 +102,12 @@ export default function LoginPage() {
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', marginBottom: 24 }}>
             {isSignUp ? 'יצירת חשבון' : 'כניסה למערכת'}
           </h2>
+
+          {confirmSent && (
+            <div style={{ background: '#0a2d1a', border: '1px solid #166534', borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#86efac', marginBottom: 16 }}>
+              נשלח אימייל אימות — בדוק את תיבת הדואר ולחץ על הקישור לאישור החשבון
+            </div>
+          )}
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 

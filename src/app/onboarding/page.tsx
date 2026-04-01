@@ -50,14 +50,17 @@ export default function OnboardingPage() {
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const submit = async () => {
     if (!form.full_name.trim() || !form.phone.trim() || !form.municipality_id) return
     setSaving(true)
+    setSaveError(null)
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    await supabase.from('profiles').insert({
+    const { error } = await supabase.from('profiles').insert({
       id:              user.id,
       municipality_id: form.municipality_id,
       role:            'assistant',
@@ -66,6 +69,12 @@ export default function OnboardingPage() {
       whatsapp_phone:  form.whatsapp_phone.trim() || form.phone.trim(),
       is_active:       true,
     })
+
+    if (error) {
+      setSaveError('שגיאה בשמירת הפרטים — נסה שנית')
+      setSaving(false)
+      return
+    }
 
     router.push('/dashboard')
   }
@@ -149,6 +158,12 @@ export default function OnboardingPage() {
               </label>
             )}
           </div>
+
+          {saveError && (
+            <div style={{ background: '#2d0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#fca5a5', marginTop: 8 }}>
+              {saveError}
+            </div>
+          )}
 
           <button
             onClick={submit}

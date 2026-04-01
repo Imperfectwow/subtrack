@@ -12,7 +12,7 @@ export default function AuthConfirm() {
     const next = new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
 
     // implicit flow: token is in the URL hash
-    supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         router.push(next)
       }
@@ -22,6 +22,8 @@ export default function AuthConfirm() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.push(next)
     })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   return (
