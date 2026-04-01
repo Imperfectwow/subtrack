@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code / claude-flow agent config (boilerplate, not project code)
+.claude/
+.claude-flow/
+src/.claude-flow/
+.mcp.json
+
+# Supabase local data (keep config.toml, ignore local volumes)
+supabase/.branches/
+supabase/data/

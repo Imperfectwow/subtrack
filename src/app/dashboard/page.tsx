@@ -1,11 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentProfile, roleRoutes } from '@/lib/supabase/auth'
 import { redirect } from 'next/navigation'
-import CoordinatorDashboard from '@/components/CoordinatorDashboard'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-  return <CoordinatorDashboard />
+  const profile = await getCurrentProfile()
+  if (!profile) redirect('/login')
+  redirect(roleRoutes[profile.role])
 }

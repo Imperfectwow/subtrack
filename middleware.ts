@@ -10,6 +10,6 @@ export const config = {
     // הפעל middleware על כל הנתיבים חוץ מ:
     // - קבצים סטטיים
     // - api routes של Next.js
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

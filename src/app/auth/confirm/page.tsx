@@ -1,0 +1,41 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+export default function AuthConfirm() {
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
+
+    // implicit flow: token is in the URL hash
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        router.push(next)
+      }
+    })
+
+    // fallback: check if already signed in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push(next)
+    })
+  }, [])
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#030b15',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#94a3b8',
+      fontFamily: 'sans-serif',
+      fontSize: 14,
+    }}>
+      מתחבר...
+    </div>
+  )
+}
