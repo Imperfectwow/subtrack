@@ -1,8 +1,13 @@
 project_id = "subtrack"
 
 [auth]
-site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback", "http://127.0.0.1:3000/auth/confirm", "http://localhost:3000/auth/callback", "http://localhost:3000/auth/confirm"]
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/confirm",
+  "http://127.0.0.1:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/confirm",
+]
 
 [auth.external.google]
 enabled = true

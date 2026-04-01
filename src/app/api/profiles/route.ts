@@ -3,22 +3,30 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
 const createProfileSchema = z.object({
-  full_name:       z.string().min(2, 'השם חייב להכיל לפחות 2 תווים').max(100),
-  phone:           z.string().regex(/^0\d{1,2}-?\d{7}$/, 'מספר טלפון לא תקין'),
-  whatsapp_phone:  z.string().regex(/^0\d{1,2}-?\d{7}$/, 'מספר וואטסאפ לא תקין').optional().or(z.literal('')),
-  municipality_id: z.string().uuid('מזהה רשות מקומית לא תקין'),
+  full_name:      z.string().min(2, 'השם חייב להכיל לפחות 2 תווים').max(100),
+  phone:          z.string().regex(/^0\d{1,2}-?\d{7}$/, 'מספר טלפון לא תקין'),
+  whatsapp_phone: z.string().regex(/^0\d{1,2}-?\d{7}$/, 'מספר וואטסאפ לא תקין').optional().or(z.literal('')),
+  token:          z.string().regex(/^[0-9a-f]{64}$/, 'טוקן הזמנה לא תקין'),
 })
+
+// Maps Postgres exception messages from use_invitation() to HTTP responses
+const RPC_ERRORS: Record<string, { status: number; error: string }> = {
+  not_authenticated:     { status: 401, error: 'לא מורשה'                                    },
+  invitation_not_found:  { status: 422, error: 'טוקן הזמנה לא תקין'                          },
+  invitation_already_used: { status: 410, error: 'ההזמנה כבר נוצלה'                          },
+  invitation_expired:    { status: 410, error: 'ההזמנה פגה תוקף'                             },
+  email_mismatch:        { status: 403, error: 'ההזמנה אינה שייכת לכתובת האימייל הזו'        },
+  profile_already_exists:{ status: 409, error: 'פרופיל כבר קיים למשתמש זה'                   },
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
-  // Verify authenticated session
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: 'לא מורשה' }, { status: 401 })
   }
 
-  // Parse and validate request body
   let body: unknown
   try {
     body = await request.json()
@@ -30,51 +38,26 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'נתונים לא תקינים', details: parsed.error.flatten().fieldErrors },
-      { status: 422 }
+      { status: 422 },
     )
   }
 
-  const { full_name, phone, whatsapp_phone, municipality_id } = parsed.data
+  const { full_name, phone, whatsapp_phone, token } = parsed.data
 
-  // Verify municipality exists and is active
-  const { data: municipality } = await supabase
-    .from('municipalities')
-    .select('id')
-    .eq('id', municipality_id)
-    .eq('is_active', true)
-    .single()
+  // Single atomic RPC call: validates token, marks used, inserts profile — all in one transaction
+  const { data: profile, error: rpcError } = await supabase.rpc('use_invitation', {
+    p_token:          token,
+    p_full_name:      full_name,
+    p_phone:          phone,
+    p_whatsapp_phone: whatsapp_phone ?? '',
+  })
 
-  if (!municipality) {
-    return NextResponse.json({ error: 'הרשות המקומית לא נמצאה או אינה פעילה' }, { status: 422 })
-  }
-
-  // Prevent duplicate profile creation
-  const { data: existing } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .single()
-
-  if (existing) {
-    return NextResponse.json({ error: 'פרופיל כבר קיים למשתמש זה' }, { status: 409 })
-  }
-
-  const { data: profile, error: insertError } = await supabase
-    .from('profiles')
-    .insert({
-      id:              user.id,
-      municipality_id,
-      role:            'assistant',
-      full_name:       full_name.trim(),
-      phone:           phone.trim(),
-      whatsapp_phone:  (whatsapp_phone?.trim() || phone.trim()),
-      is_active:       true,
-    })
-    .select()
-    .single()
-
-  if (insertError) {
-    console.error('[POST /api/profiles] insert error:', insertError.code)
+  if (rpcError) {
+    const mapped = RPC_ERRORS[rpcError.message]
+    if (mapped) {
+      return NextResponse.json({ error: mapped.error }, { status: mapped.status })
+    }
+    console.error('[POST /api/profiles] use_invitation rpc error:', rpcError.message)
     return NextResponse.json({ error: 'שגיאה בשמירת הפרטים — נסה שנית' }, { status: 500 })
   }
 

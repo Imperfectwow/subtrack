@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return response
     }
+    console.error('[auth/callback] exchangeCodeForSession failed:', error.message)
   }
 
   return NextResponse.redirect(`${base}/login?error=auth_callback_failed`)

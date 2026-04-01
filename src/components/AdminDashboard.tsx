@@ -8,7 +8,7 @@ import Header from '@/components/dashboard/Header'
 import AbsencesTable from '@/components/dashboard/AbsencesTable'
 import NavSidebar from '@/components/dashboard/NavSidebar'
 import AbsenceDetail from '@/components/dashboard/AbsenceDetail'
-import type { Absence, School } from '@/lib/types'
+import type { Absence, School, UserRole } from '@/lib/types'
 
 interface AssistantRow {
   id: string
@@ -20,10 +20,19 @@ interface AssistantRow {
 }
 
 const NAV = [
-  { key: 'dashboard',  label: 'בקרה',    icon: '📊' },
-  { key: 'assistants', label: 'מסייעות', icon: '👥' },
-  { key: 'schools',    label: 'בתי ספר', icon: '🏫' },
+  { key: 'dashboard',   label: 'בקרה',    icon: '📊' },
+  { key: 'assistants',  label: 'מסייעות', icon: '👥' },
+  { key: 'schools',     label: 'בתי ספר', icon: '🏫' },
+  { key: 'invitations', label: 'הזמנות',  icon: '✉️' },
 ]
+
+interface PendingInvite {
+  id: string
+  email: string
+  role: UserRole
+  expires_at: string
+  created_at: string
+}
 
 export default function AdminDashboard() {
   const supabase = useSupabase()
@@ -35,6 +44,11 @@ export default function AdminDashboard() {
   const [view, setView]               = useState('dashboard')
   const [sidebarTab, setSidebarTab]   = useState<'schools' | 'assistants'>('schools')
   const [selectedAbsence, setSelectedAbsence] = useState<Absence | null>(null)
+  const [pendingInvites, setPendingInvites]   = useState<PendingInvite[]>([])
+  const [inviteEmail, setInviteEmail]         = useState('')
+  const [inviteRole, setInviteRole]           = useState<'assistant' | 'coordinator'>('assistant')
+  const [inviteLink, setInviteLink]           = useState('')
+  const [inviteLoading, setInviteLoading]     = useState(false)
 
   const now = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
 
@@ -52,8 +66,36 @@ export default function AdminDashboard() {
     setLastUpdate(now())
   }
 
+  const fetchInvitations = async () => {
+    const res = await fetch('/api/invitations')
+    if (res.ok) {
+      const body = await res.json()
+      setPendingInvites(body.invitations ?? [])
+    }
+  }
+
+  const createInvite = async () => {
+    if (!inviteEmail.trim()) return
+    setInviteLoading(true)
+    setInviteLink('')
+    const res = await fetch('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(body.error ?? 'שגיאה ביצירת ההזמנה')
+    } else {
+      setInviteLink(body.invite_url)
+      setInviteEmail('')
+      fetchInvitations()
+    }
+    setInviteLoading(false)
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll(); fetchInvitations() }, [])
 
   const toggleAvailability = async (id: string, current: boolean) => {
     const res = await fetch(`/api/assistants/${id}/availability`, {
@@ -211,6 +253,78 @@ export default function AdminDashboard() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Invitations view */}
+        {view === 'invitations' && (
+          <div style={{ padding: 16, maxWidth: 680 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 20 }}>
+              הזמנת משתמשים חדשים
+            </div>
+
+            {/* Create invite form */}
+            <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1', marginBottom: 14 }}>יצירת קישור הזמנה</div>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  style={{ flex: 1, minWidth: 200, background: '#030b15', border: '1px solid #1e3a5f', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#e2e8f0', fontFamily: 'Heebo, sans-serif', outline: 'none', direction: 'ltr' }}
+                />
+                <select
+                  value={inviteRole}
+                  onChange={e => setInviteRole(e.target.value as 'assistant' | 'coordinator')}
+                  style={{ background: '#030b15', border: '1px solid #1e3a5f', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#e2e8f0', fontFamily: 'Heebo, sans-serif', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="assistant">מסייעת</option>
+                  <option value="coordinator">רכז/ת</option>
+                </select>
+                <button
+                  onClick={createInvite}
+                  disabled={inviteLoading || !inviteEmail.trim()}
+                  className="btn"
+                  style={{ background: inviteLoading || !inviteEmail.trim() ? '#1e3a5f' : '#1d4ed8', color: '#fff', padding: '9px 18px', fontSize: 13 }}
+                >
+                  {inviteLoading ? '...' : '+ צור הזמנה'}
+                </button>
+              </div>
+
+              {inviteLink && (
+                <div style={{ background: '#030b15', border: '1px solid #166534', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ flex: 1, fontSize: 12, color: '#4ade80', fontFamily: 'monospace', wordBreak: 'break-all', direction: 'ltr' }}>{inviteLink}</span>
+                  <button
+                    className="btn"
+                    onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success('הקישור הועתק') }}
+                    style={{ background: '#052e16', border: '1px solid #166534', color: '#4ade80', padding: '5px 12px', fontSize: 12, flexShrink: 0 }}
+                  >
+                    העתק
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Pending invites list */}
+            <div className="card" style={{ padding: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 12 }}>
+                הזמנות פעילות ({pendingInvites.length})
+              </div>
+              {pendingInvites.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 13, color: '#334155' }}>אין הזמנות פעילות</div>
+              ) : pendingInvites.map(inv => (
+                <div key={inv.id} style={{ padding: '10px 0', borderBottom: '1px solid #0a1628', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: '#cbd5e1', direction: 'ltr' }}>{inv.email}</div>
+                    <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
+                      {inv.role === 'assistant' ? 'מסייעת' : 'רכז/ת'} · פג בתאריך {new Date(inv.expires_at).toLocaleDateString('he-IL')}
+                    </div>
+                  </div>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -12,42 +12,50 @@ create extension if not exists "postgis"; -- לחישוב מרחקים גיאו�
 -- 1. ENUMS — סוגי ערכים קבועים
 -- ============================================================
 
-create type user_role as enum (
-  'super_admin',   -- אתה — גישה לכל המערכת
-  'admin',         -- מנהל רשות מקומית
-  'coordinator',   -- רכז בבית ספר
-  'assistant'      -- מסייעת
-);
+do $$ begin
+  create type user_role as enum (
+    'super_admin',   -- אתה — גישה לכל המערכת
+    'admin',         -- מנהל רשות מקומית
+    'coordinator',   -- רכז בבית ספר
+    'assistant'      -- מסייעת
+  );
+exception when duplicate_object then null; end $$;
 
-create type absence_status as enum (
-  'open',          -- נפתח, ממתין לשיבוץ
-  'matching',      -- האלגוריתם מחפש
-  'pending',       -- הצעה נשלחה למסייעת, ממתין לאישור
-  'confirmed',     -- מסייעת אישרה
-  'cancelled',     -- בוטל
-  'no_show'        -- מסייעת לא הגיעה
-);
+do $$ begin
+  create type absence_status as enum (
+    'open',          -- נפתח, ממתין לשיבוץ
+    'matching',      -- האלגוריתם מחפש
+    'pending',       -- הצעה נשלחה למסייעת, ממתין לאישור
+    'confirmed',     -- מסייעת אישרה
+    'cancelled',     -- בוטל
+    'no_show'        -- מסייעת לא הגיעה
+  );
+exception when duplicate_object then null; end $$;
 
-create type assignment_status as enum (
-  'offered',       -- הצעה נשלחה
-  'accepted',      -- מסייעת קיבלה
-  'confirmed',     -- שיבוץ סופי אושר
-  'declined',      -- מסייעת דחתה
-  'expired',       -- פג תוקף (לא ענתה תוך X דקות)
-  'cancelled'
-);
+do $$ begin
+  create type assignment_status as enum (
+    'offered',       -- הצעה נשלחה
+    'accepted',      -- מסייעת קיבלה
+    'confirmed',     -- שיבוץ סופי אושר
+    'declined',      -- מסייעת דחתה
+    'expired',       -- פג תוקף (לא ענתה תוך X דקות)
+    'cancelled'
+  );
+exception when duplicate_object then null; end $$;
 
-create type whatsapp_direction as enum (
-  'outbound',      -- מהמערכת למשתמש
-  'inbound'        -- מהמשתמש למערכת
-);
+do $$ begin
+  create type whatsapp_direction as enum (
+    'outbound',      -- מהמערכת למשתמש
+    'inbound'        -- מהמשתמש למערכת
+  );
+exception when duplicate_object then null; end $$;
 
 
 -- ============================================================
 -- 2. MUNICIPALITIES — רשויות מקומיות
 -- ============================================================
 
-create table municipalities (
+create table if not exists municipalities (
   id            uuid primary key default uuid_generate_v4(),
   name          text not null,
   slug          text not null unique,        -- לכתובת URL: tel-aviv, haifa...
@@ -66,7 +74,7 @@ comment on table municipalities is 'רשויות מקומיות — כל רשו�
 -- 3. SCHOOLS — בתי ספר
 -- ============================================================
 
-create table schools (
+create table if not exists schools (
   id                uuid primary key default uuid_generate_v4(),
   municipality_id   uuid not null references municipalities(id) on delete cascade,
   name              text not null,
@@ -81,15 +89,15 @@ create table schools (
 
 comment on table schools is 'בתי ספר — שייך לרשות מקומית';
 
-create index idx_schools_municipality on schools(municipality_id);
-create index idx_schools_location on schools using gist(location);
+create index if not exists idx_schools_municipality on schools(municipality_id);
+create index if not exists idx_schools_location on schools using gist(location);
 
 
 -- ============================================================
 -- 4. PROFILES — פרופיל משתמש (מרחיב את auth.users של Supabase)
 -- ============================================================
 
-create table profiles (
+create table if not exists profiles (
   id                uuid primary key references auth.users(id) on delete cascade,
   municipality_id   uuid references municipalities(id) on delete set null,
   role              user_role not null default 'assistant',
@@ -104,15 +112,15 @@ create table profiles (
 
 comment on table profiles is 'פרופיל מורחב לכל משתמש במערכת';
 
-create index idx_profiles_municipality on profiles(municipality_id);
-create index idx_profiles_role on profiles(role);
+create index if not exists idx_profiles_municipality on profiles(municipality_id);
+create index if not exists idx_profiles_role on profiles(role);
 
 
 -- ============================================================
 -- 5. ASSISTANTS — פרטי מסייעות (בנוסף לפרופיל)
 -- ============================================================
 
-create table assistants (
+create table if not exists assistants (
   id                  uuid primary key references profiles(id) on delete cascade,
   municipality_id     uuid not null references municipalities(id) on delete cascade,
   current_location    geography(point, 4326),   -- מיקום נוכחי (מתעדכן מהאפליקציה)
@@ -130,16 +138,16 @@ create table assistants (
 
 comment on table assistants is 'פרטים נוספים למסייעות — דירוג, מיקום, מקצועות';
 
-create index idx_assistants_municipality on assistants(municipality_id);
-create index idx_assistants_location on assistants using gist(current_location);
-create index idx_assistants_available on assistants(is_available);
+create index if not exists idx_assistants_municipality on assistants(municipality_id);
+create index if not exists idx_assistants_location on assistants using gist(current_location);
+create index if not exists idx_assistants_available on assistants(is_available);
 
 
 -- ============================================================
 -- 6. ABSENCES — דיווחי היעדרות
 -- ============================================================
 
-create table absences (
+create table if not exists absences (
   id                uuid primary key default uuid_generate_v4(),
   municipality_id   uuid not null references municipalities(id) on delete cascade,
   school_id         uuid not null references schools(id) on delete cascade,
@@ -160,17 +168,17 @@ create table absences (
 
 comment on table absences is 'דיווחי היעדרות מורים';
 
-create index idx_absences_municipality on absences(municipality_id);
-create index idx_absences_school on absences(school_id);
-create index idx_absences_date on absences(absence_date);
-create index idx_absences_status on absences(status);
+create index if not exists idx_absences_municipality on absences(municipality_id);
+create index if not exists idx_absences_school on absences(school_id);
+create index if not exists idx_absences_date on absences(absence_date);
+create index if not exists idx_absences_status on absences(status);
 
 
 -- ============================================================
 -- 7. ASSIGNMENTS — שיבוצי מסייעות
 -- ============================================================
 
-create table assignments (
+create table if not exists assignments (
   id              uuid primary key default uuid_generate_v4(),
   absence_id      uuid not null references absences(id) on delete cascade,
   assistant_id    uuid not null references assistants(id) on delete cascade,
@@ -188,17 +196,17 @@ create table assignments (
 
 comment on table assignments is 'שיבוצי מסייעות להיעדרויות';
 
-create index idx_assignments_absence on assignments(absence_id);
-create index idx_assignments_assistant on assignments(assistant_id);
-create index idx_assignments_status on assignments(status);
-create index idx_assignments_expires on assignments(expires_at) where status = 'offered';
+create index if not exists idx_assignments_absence on assignments(absence_id);
+create index if not exists idx_assignments_assistant on assignments(assistant_id);
+create index if not exists idx_assignments_status on assignments(status);
+create index if not exists idx_assignments_expires on assignments(expires_at) where status = 'offered';
 
 
 -- ============================================================
 -- 8. WHATSAPP_LOGS — לוג הודעות וואטסאפ
 -- ============================================================
 
-create table whatsapp_logs (
+create table if not exists whatsapp_logs (
   id              uuid primary key default uuid_generate_v4(),
   municipality_id uuid references municipalities(id) on delete set null,
   absence_id      uuid references absences(id) on delete set null,
@@ -216,16 +224,16 @@ create table whatsapp_logs (
 
 comment on table whatsapp_logs is 'לוג כל הודעות הוואטסאפ שנשלחו/התקבלו';
 
-create index idx_whatsapp_logs_absence on whatsapp_logs(absence_id);
-create index idx_whatsapp_logs_phone on whatsapp_logs(phone);
-create index idx_whatsapp_logs_created on whatsapp_logs(created_at desc);
+create index if not exists idx_whatsapp_logs_absence on whatsapp_logs(absence_id);
+create index if not exists idx_whatsapp_logs_phone on whatsapp_logs(phone);
+create index if not exists idx_whatsapp_logs_created on whatsapp_logs(created_at desc);
 
 
 -- ============================================================
 -- 9. RATINGS — דירוגי מסייעות אחרי שיבוץ
 -- ============================================================
 
-create table ratings (
+create table if not exists ratings (
   id              uuid primary key default uuid_generate_v4(),
   assignment_id   uuid not null references assignments(id) on delete cascade,
   assistant_id    uuid not null references assistants(id) on delete cascade,
@@ -237,11 +245,34 @@ create table ratings (
 
 comment on table ratings is 'דירוגים של מסייעות אחרי שיבוץ';
 
-create unique index idx_ratings_unique on ratings(assignment_id);  -- דירוג אחד לשיבוץ
+create unique index if not exists idx_ratings_unique on ratings(assignment_id);  -- דירוג אחד לשיבוץ
 
 
 -- ============================================================
--- 10. FUNCTIONS — פונקציות עזר
+-- 10. INVITATIONS — הזמנות למשתמשים חדשים
+-- ============================================================
+
+create table if not exists invitations (
+  id              uuid        primary key default uuid_generate_v4(),
+  token           text        not null unique,
+  email           text        not null,
+  municipality_id uuid        not null references municipalities(id) on delete cascade,
+  role            user_role   not null default 'assistant',
+  created_by      uuid        not null references profiles(id) on delete cascade,
+  expires_at      timestamptz not null default (now() + interval '48 hours'),
+  used_at         timestamptz,
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists idx_invitations_token           on invitations (token);
+create index if not exists idx_invitations_municipality_id on invitations (municipality_id);
+create index if not exists idx_invitations_email           on invitations (email);
+
+comment on table invitations is 'קישורי הזמנה חד-פעמיים לצירוף משתמשים חדשים';
+
+
+-- ============================================================
+-- 11. FUNCTIONS — פונקציות עזר
 -- ============================================================
 
 -- עדכון updated_at אוטומטי
@@ -254,10 +285,15 @@ end;
 $$ language plpgsql;
 
 -- הפעל על כל הטבלאות הרלוונטיות
+drop trigger if exists trg_municipalities_updated on municipalities;
 create trigger trg_municipalities_updated before update on municipalities for each row execute function update_updated_at();
+drop trigger if exists trg_schools_updated on schools;
 create trigger trg_schools_updated before update on schools for each row execute function update_updated_at();
+drop trigger if exists trg_profiles_updated on profiles;
 create trigger trg_profiles_updated before update on profiles for each row execute function update_updated_at();
+drop trigger if exists trg_assistants_updated on assistants;
 create trigger trg_assistants_updated before update on assistants for each row execute function update_updated_at();
+drop trigger if exists trg_absences_updated on absences;
 create trigger trg_absences_updated before update on absences for each row execute function update_updated_at();
 
 -- עדכון דירוג ממוצע של מסייעת אחרי כל דירוג חדש
@@ -275,6 +311,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists trg_update_rating on ratings;
 create trigger trg_update_rating after insert on ratings for each row execute function update_assistant_rating();
 
 -- מציאת מסייעות זמינות לפי מרחק ממיקום בית הספר
@@ -340,6 +377,7 @@ alter table absences          enable row level security;
 alter table assignments       enable row level security;
 alter table whatsapp_logs     enable row level security;
 alter table ratings           enable row level security;
+alter table invitations       enable row level security;
 
 -- פונקציה עזר: מה ה-role של המשתמש המחובר?
 create or replace function my_role()
@@ -355,54 +393,139 @@ $$ language sql security definer stable set search_path = public, pg_temp;
 
 
 -- MUNICIPALITIES
-create policy "super_admin sees all"       on municipalities for select using (my_role() = 'super_admin');
-create policy "admin sees own municipality" on municipalities for select using (id = my_municipality_id());
-create policy "super_admin manages"        on municipalities for all    using (my_role() = 'super_admin');
+drop policy if exists "super_admin sees all"                     on municipalities;
+drop policy if exists "admin sees own municipality"              on municipalities;
+drop policy if exists "authenticated reads active municipalities" on municipalities;
+drop policy if exists "super_admin manages"                      on municipalities;
+create policy "super_admin sees all"                     on municipalities for select using (my_role() = 'super_admin');
+create policy "admin sees own municipality"              on municipalities for select using (id = my_municipality_id());
+create policy "authenticated reads active municipalities" on municipalities for select to authenticated using (is_active = true);
+create policy "super_admin manages"                      on municipalities for all    using (my_role() = 'super_admin');
 
 -- SCHOOLS
-create policy "super_admin sees all schools"  on schools for select using (my_role() = 'super_admin');
-create policy "users see own municipality schools" on schools for select using (municipality_id = my_municipality_id());
-create policy "admin manages schools"      on schools for all using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
+drop policy if exists "super_admin sees all schools"       on schools;
+drop policy if exists "users see own municipality schools"  on schools;
+drop policy if exists "admin manages schools"              on schools;
+create policy "super_admin sees all schools"       on schools for select using (my_role() = 'super_admin');
+create policy "users see own municipality schools"  on schools for select using (municipality_id = my_municipality_id());
+create policy "admin manages schools"              on schools for all using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
 
 -- PROFILES
-create policy "users see own profile"      on profiles for select using (id = auth.uid());
-create policy "admin sees municipality"    on profiles for select using (my_role() in ('super_admin', 'admin', 'coordinator') and municipality_id = my_municipality_id());
-create policy "super_admin sees all"       on profiles for select using (my_role() = 'super_admin');
-create policy "users update own profile"   on profiles for update using (id = auth.uid());
-create policy "admin manages profiles"     on profiles for all using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
+drop policy if exists "users see own profile"    on profiles;
+drop policy if exists "admin sees municipality"  on profiles;
+drop policy if exists "super_admin sees all"     on profiles;
+drop policy if exists "users update own profile" on profiles;
+drop policy if exists "admin manages profiles"   on profiles;
+create policy "users see own profile"    on profiles for select using (id = auth.uid());
+create policy "admin sees municipality"  on profiles for select using (my_role() in ('super_admin', 'admin', 'coordinator') and municipality_id = my_municipality_id());
+create policy "super_admin sees all"     on profiles for select using (my_role() = 'super_admin');
+create policy "users update own profile" on profiles for update using (id = auth.uid());
+create policy "admin manages profiles"   on profiles for all using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
 
 -- ASSISTANTS
+drop policy if exists "see assistants in municipality" on assistants;
+drop policy if exists "assistant updates own"          on assistants;
+drop policy if exists "admin manages assistants"       on assistants;
 create policy "see assistants in municipality" on assistants for select using (municipality_id = my_municipality_id() or my_role() = 'super_admin');
-create policy "assistant updates own"      on assistants for update using (id = auth.uid());
-create policy "admin manages assistants"   on assistants for all using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
+create policy "assistant updates own"          on assistants for update using (id = auth.uid());
+create policy "admin manages assistants"       on assistants for all using (my_role() in ('super_admin', 'admin') and municipality_id = my_municipality_id());
 
 -- ABSENCES
-create policy "see absences in municipality" on absences for select using (municipality_id = my_municipality_id() or my_role() = 'super_admin');
-create policy "coordinator creates absence"  on absences for insert with check (municipality_id = my_municipality_id() and my_role() in ('coordinator', 'admin', 'super_admin'));
-create policy "coordinator updates absence"  on absences for update using (municipality_id = my_municipality_id() and my_role() in ('coordinator', 'admin', 'super_admin'));
+drop policy if exists "see absences in municipality"  on absences;
+drop policy if exists "coordinator creates absence"   on absences;
+drop policy if exists "coordinator updates absence"   on absences;
+create policy "see absences in municipality"  on absences for select using (municipality_id = my_municipality_id() or my_role() = 'super_admin');
+create policy "coordinator creates absence"   on absences for insert with check (municipality_id = my_municipality_id() and my_role() in ('coordinator', 'admin', 'super_admin'));
+create policy "coordinator updates absence"   on absences for update using (municipality_id = my_municipality_id() and my_role() in ('coordinator', 'admin', 'super_admin'));
 
 -- ASSIGNMENTS
+drop policy if exists "see assignments in municipality" on assignments;
+drop policy if exists "assistant sees own assignments"  on assignments;
+drop policy if exists "system manages assignments"      on assignments;
+drop policy if exists "assistant responds"              on assignments;
 create policy "see assignments in municipality" on assignments for select using (municipality_id = my_municipality_id() or my_role() = 'super_admin');
 create policy "assistant sees own assignments"  on assignments for select using (assistant_id = auth.uid());
 create policy "system manages assignments"      on assignments for all using (my_role() in ('super_admin', 'admin', 'coordinator'));
 create policy "assistant responds"              on assignments for update using (assistant_id = auth.uid());
 
 -- WHATSAPP_LOGS
+drop policy if exists "admin sees logs" on whatsapp_logs;
 create policy "admin sees logs" on whatsapp_logs for select using (my_role() in ('super_admin', 'admin', 'coordinator') and (municipality_id = my_municipality_id() or my_role() = 'super_admin'));
 
 -- RATINGS
+drop policy if exists "see ratings in municipality" on ratings;
+drop policy if exists "coordinator rates"           on ratings;
 create policy "see ratings in municipality" on ratings for select using (my_role() in ('super_admin', 'admin', 'coordinator') and exists (select 1 from assignments a where a.id = assignment_id and a.municipality_id = my_municipality_id()));
 create policy "coordinator rates"           on ratings for insert with check (my_role() in ('coordinator', 'admin'));
 
+-- INVITATIONS
+drop policy if exists "read own municipality invitations" on invitations;
+drop policy if exists "super_admin sees all invitations"  on invitations;
+drop policy if exists "create invitations"                on invitations;
+create policy "read own municipality invitations" on invitations for select to authenticated using (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator'));
+create policy "super_admin sees all invitations"  on invitations for select to authenticated using (my_role() = 'super_admin');
+create policy "create invitations"                on invitations for insert to authenticated with check (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator'));
+
 
 -- ============================================================
--- 12. SEED DATA — נתוני בדיקה
+-- 12. USE_INVITATION — atomic token consumption
+-- ============================================================
+
+create or replace function public.use_invitation(
+  p_token          text,
+  p_full_name      text,
+  p_phone          text,
+  p_whatsapp_phone text default ''
+)
+returns json
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id        uuid := auth.uid();
+  v_user_email     text;
+  v_invite         record;
+  v_profile        record;
+begin
+  select email into v_user_email from auth.users where id = v_user_id;
+  if v_user_email is null then raise exception 'not_authenticated'      using errcode = 'P0001'; end if;
+
+  select id, email, municipality_id, role, expires_at, used_at
+  into v_invite from invitations where token = p_token for update;
+  if not found                          then raise exception 'invitation_not_found'    using errcode = 'P0002'; end if;
+  if v_invite.used_at is not null       then raise exception 'invitation_already_used' using errcode = 'P0003'; end if;
+  if v_invite.expires_at < now()        then raise exception 'invitation_expired'      using errcode = 'P0004'; end if;
+  if lower(v_invite.email) <> lower(v_user_email)
+                                        then raise exception 'email_mismatch'          using errcode = 'P0005'; end if;
+  if exists (select 1 from profiles where id = v_user_id)
+                                        then raise exception 'profile_already_exists'  using errcode = 'P0006'; end if;
+
+  update invitations set used_at = now() where id = v_invite.id;
+
+  insert into profiles (id, municipality_id, role, full_name, phone, whatsapp_phone, is_active)
+  values (
+    v_user_id, v_invite.municipality_id, v_invite.role,
+    trim(p_full_name), trim(p_phone),
+    coalesce(nullif(trim(p_whatsapp_phone), ''), trim(p_phone)),
+    true
+  )
+  returning * into v_profile;
+
+  return row_to_json(v_profile);
+end;
+$$;
+
+
+-- ============================================================
+-- 13. SEED DATA — נתוני בדיקה
 -- ============================================================
 
 -- רשויות
 insert into municipalities (id, name, slug, contact_email) values
   ('11111111-0000-0000-0000-000000000001', 'עיריית תל אביב-יפו', 'tel-aviv', 'edu@tlv.gov.il'),
-  ('11111111-0000-0000-0000-000000000002', 'עיריית חיפה', 'haifa', 'edu@haifa.gov.il');
+  ('11111111-0000-0000-0000-000000000002', 'עיריית חיפה', 'haifa', 'edu@haifa.gov.il')
+on conflict (id) do nothing;
 
 -- בתי ספר (עם קואורדינטות אמיתיות)
 insert into schools (municipality_id, name, address, location) values
@@ -410,7 +533,8 @@ insert into schools (municipality_id, name, address, location) values
   ('11111111-0000-0000-0000-000000000001', 'חטיבת בן-גוריון', 'שדרות בן-גוריון 5, תל אביב', st_point(34.7695, 32.0873)::geography),
   ('11111111-0000-0000-0000-000000000001', 'תיכון וייצמן', 'רחוב ויצמן 30, תל אביב',   st_point(34.7912, 32.0854)::geography),
   ('11111111-0000-0000-0000-000000000001', 'אקדמיית איינשטיין', 'רחוב אלנבי 80, תל אביב', st_point(34.7729, 32.0672)::geography),
-  ('11111111-0000-0000-0000-000000000002', 'יסודי גולדה', 'רחוב הנביאים 10, חיפה',    st_point(34.9896, 32.7940)::geography);
+  ('11111111-0000-0000-0000-000000000002', 'יסודי גולדה', 'רחוב הנביאים 10, חיפה',    st_point(34.9896, 32.7940)::geography)
+on conflict do nothing;
 
 
 -- ============================================================

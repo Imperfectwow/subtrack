@@ -18,6 +18,10 @@ export default function LoginPage() {
   })
   const [isSignUp, setIsSignUp]       = useState(false)
   const [confirmSent, setConfirmSent] = useState(false)
+  const [nextPath]                    = useState<string>(() => {
+    if (typeof window === 'undefined') return '/dashboard'
+    return new URLSearchParams(window.location.search).get('next') ?? '/dashboard'
+  })
 
   const router   = useRouter()
   const supabase = useSupabase()
@@ -47,7 +51,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    router.push(nextPath)
     router.refresh()
   }
 
@@ -188,7 +192,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       },
     })
     if (error) toast.error('שגיאה בהתחברות עם Google')

@@ -99,6 +99,18 @@ export interface Assignment {
   absence?: Absence
 }
 
+export interface Invitation {
+  id: string
+  token: string
+  email: string
+  municipality_id: string
+  role: UserRole
+  created_by: string
+  expires_at: string
+  used_at?: string
+  created_at: string
+}
+
 export interface Rating {
   id: string
   assignment_id: string
