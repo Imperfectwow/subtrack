@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 export function useRealtimeDashboard(
   onAbsenceChange: () => void,
   onAssistantChange: () => void,
 ) {
-  const [supabase] = useState(() => createClient())
+  const supabase = useSupabase()
   const [newEvents, setNewEvents] = useState<string[]>([])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps

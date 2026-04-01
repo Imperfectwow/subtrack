@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { School } from '@/lib/types'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 interface AbsenceFormProps {
   schools: School[]
@@ -21,7 +21,7 @@ const inputStyle: React.CSSProperties = {
 }
 
 export default function AbsenceForm({ schools, onClose, onSaved }: AbsenceFormProps) {
-  const [supabase] = useState(() => createClient())
+  const supabase = useSupabase()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     school_id:    schools[0]?.id ?? '',

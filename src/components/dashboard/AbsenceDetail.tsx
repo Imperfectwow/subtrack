@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { statusColors } from '@/lib/constants/dashboardConstants'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 import type { Absence, Assignment } from '@/lib/types'
 
 interface AbsenceDetailProps {
@@ -29,7 +29,7 @@ function InfoCell({ label, value, color = '#e2e8f0' }: { label: string; value: s
 }
 
 export default function AbsenceDetail({ absence, onClose }: AbsenceDetailProps) {
-  const [supabase] = useState(() => createClient())
+  const supabase = useSupabase()
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(false)
 

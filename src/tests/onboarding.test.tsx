@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import React from 'react'
 
 // Mock next/navigation
 const mockPush = vi.fn()
@@ -8,9 +9,13 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }))
 
-// Mock Supabase client
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: vi.fn(),
+// Mock sonner
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+
+// Mock SupabaseProvider — passthrough wrapper + controllable useSupabase hook
+vi.mock('@/components/providers/SupabaseProvider', () => ({
+  SupabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useSupabase: vi.fn(),
 }))
 
 const makeSupabaseMock = (overrides: {
@@ -49,8 +54,8 @@ describe('OnboardingPage — redirect behavior', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   it('redirects to /login when no authenticated user', async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    vi.mocked(createClient).mockReturnValue(makeSupabaseMock({ userId: null }) as never)
+    const { useSupabase } = await import('@/components/providers/SupabaseProvider')
+    vi.mocked(useSupabase).mockReturnValue(makeSupabaseMock({ userId: null }) as never)
 
     const { default: OnboardingPage } = await import('@/app/onboarding/page')
     render(<OnboardingPage />)
@@ -65,8 +70,8 @@ describe('OnboardingPage — form validation', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.resetModules()
-    const { createClient } = await import('@/lib/supabase/client')
-    vi.mocked(createClient).mockReturnValue(makeSupabaseMock() as never)
+    const { useSupabase } = await import('@/components/providers/SupabaseProvider')
+    vi.mocked(useSupabase).mockReturnValue(makeSupabaseMock() as never)
   })
 
   it('submit button is disabled when full_name is empty', async () => {
@@ -101,8 +106,8 @@ describe('OnboardingPage — municipality select', () => {
   })
 
   it('does not show municipality dropdown when only 1 municipality exists', async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    vi.mocked(createClient).mockReturnValue(
+    const { useSupabase } = await import('@/components/providers/SupabaseProvider')
+    vi.mocked(useSupabase).mockReturnValue(
       makeSupabaseMock({ municipalities: [{ id: 'm1', name: 'תל אביב' }] }) as never
     )
 
@@ -114,8 +119,8 @@ describe('OnboardingPage — municipality select', () => {
   })
 
   it('shows municipality dropdown when multiple municipalities exist', async () => {
-    const { createClient } = await import('@/lib/supabase/client')
-    vi.mocked(createClient).mockReturnValue(
+    const { useSupabase } = await import('@/components/providers/SupabaseProvider')
+    vi.mocked(useSupabase).mockReturnValue(
       makeSupabaseMock({
         municipalities: [
           { id: 'm1', name: 'תל אביב' },

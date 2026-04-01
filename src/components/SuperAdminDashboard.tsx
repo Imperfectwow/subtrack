@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { FONT, CSS_GLOBALS } from '@/lib/constants/dashboardConstants'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Header from '@/components/dashboard/Header'
 import type { Municipality } from '@/lib/types'
 
@@ -27,7 +27,7 @@ interface AssistantDetail {
 }
 
 export default function SuperAdminDashboard() {
-  const [supabase]       = useState(() => createClient())
+  const supabase = useSupabase()
   const [municipalities, setMunicipalities] = useState<MunicipalityRow[]>([])
   const [totals, setTotals] = useState({ schools: 0, assistants: 0, absences: 0 })
   const [loading, setLoading]    = useState(true)

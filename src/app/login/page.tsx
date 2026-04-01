@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 export default function LoginPage() {
   const [email, setEmail]             = useState('')
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [confirmSent, setConfirmSent] = useState(false)
 
   const router   = useRouter()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -184,7 +185,7 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
       },
     })
-    if (error) setError('שגיאה בהתחברות עם Google')
+    if (error) toast.error('שגיאה בהתחברות עם Google')
   }}
   style={{
     width: '100%', padding: '12px 0',

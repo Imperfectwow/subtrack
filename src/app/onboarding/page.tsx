@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap');`
 
@@ -16,7 +17,7 @@ const inputStyle: React.CSSProperties = {
 interface Municipality { id: string; name: string }
 
 export default function OnboardingPage() {
-  const [supabase] = useState(() => createClient())
+  const supabase = useSupabase()
   const router = useRouter()
   const [municipalities, setMunicipalities] = useState<Municipality[]>([])
   const [saving, setSaving] = useState(false)
@@ -50,32 +51,29 @@ export default function OnboardingPage() {
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
-  const [saveError, setSaveError] = useState<string | null>(null)
-
   const submit = async () => {
     if (!form.full_name.trim() || !form.phone.trim() || !form.municipality_id) return
     setSaving(true)
-    setSaveError(null)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
-
-    const { error } = await supabase.from('profiles').insert({
-      id:              user.id,
-      municipality_id: form.municipality_id,
-      role:            'assistant',
-      full_name:       form.full_name.trim(),
-      phone:           form.phone.trim(),
-      whatsapp_phone:  form.whatsapp_phone.trim() || form.phone.trim(),
-      is_active:       true,
+    const res = await fetch('/api/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name:       form.full_name.trim(),
+        phone:           form.phone.trim(),
+        whatsapp_phone:  form.whatsapp_phone.trim(),
+        municipality_id: form.municipality_id,
+      }),
     })
 
-    if (error) {
-      setSaveError('שגיאה בשמירת הפרטים — נסה שנית')
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body.error ?? 'שגיאה בשמירת הפרטים — נסה שנית')
       setSaving(false)
       return
     }
 
+    toast.success('הפרטים נשמרו בהצלחה')
     router.push('/dashboard')
   }
 
@@ -158,12 +156,6 @@ export default function OnboardingPage() {
               </label>
             )}
           </div>
-
-          {saveError && (
-            <div style={{ background: '#2d0a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#fca5a5', marginTop: 8 }}>
-              {saveError}
-            </div>
-          )}
 
           <button
             onClick={submit}

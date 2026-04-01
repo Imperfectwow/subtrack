@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 export default function AuthConfirm() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     const next = new URLSearchParams(window.location.search).get('next') ?? '/dashboard'

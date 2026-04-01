@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { FONT, CSS_GLOBALS, statusColors } from '@/lib/constants/dashboardConstants'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Header from '@/components/dashboard/Header'
 import type { Assignment } from '@/lib/types'
 
 export default function AssistantDashboard() {
-  const [supabase]       = useState(() => createClient())
+  const supabase = useSupabase()
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [fullName, setFullName]       = useState('')
   const [rating, setRating]           = useState(5)

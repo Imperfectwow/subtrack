@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import type { Absence, School, Assistant } from '@/lib/types'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 export function useDashboardData() {
-  const [supabase] = useState(() => createClient())
+  const supabase = useSupabase()
   const [absences, setAbsences]     = useState<Absence[]>([])
   const [schools, setSchools]       = useState<School[]>([])
   const [assistants, setAssistants] = useState<Assistant[]>([])

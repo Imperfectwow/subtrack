@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { FONT, CSS_GLOBALS, statusColors } from '@/lib/constants/dashboardConstants'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Header from '@/components/dashboard/Header'
 import AbsencesTable from '@/components/dashboard/AbsencesTable'
 import NavSidebar from '@/components/dashboard/NavSidebar'
@@ -25,7 +25,7 @@ const NAV = [
 ]
 
 export default function AdminDashboard() {
-  const [supabase]     = useState(() => createClient())
+  const supabase = useSupabase()
   const [absences, setAbsences]       = useState<Absence[]>([])
   const [schools, setSchools]         = useState<School[]>([])
   const [assistants, setAssistants]   = useState<AssistantRow[]>([])

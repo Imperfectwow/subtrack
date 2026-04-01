@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 function PulsingDot({ color = '#10b981' }: { color?: string }) {
   return (
@@ -21,7 +21,7 @@ interface HeaderProps {
 }
 
 export default function Header({ lastUpdate, onRefresh, notificationSlot, subtitle }: HeaderProps) {
-  const [supabase] = useState(() => createClient())
+  const supabase = useSupabase()
   const router = useRouter()
 
   const logout = async () => {
