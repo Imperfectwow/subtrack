@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
@@ -15,6 +15,13 @@ export default function LoginPage() {
 
   const router   = useRouter()
   const supabase = useSupabase()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('error') === 'auth_callback_failed') {
+      setError('ההתחברות עם Google נכשלה — נסה שנית')
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
