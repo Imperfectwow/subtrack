@@ -24,6 +24,9 @@ export default function AuthConfirm() {
     })
 
     return () => subscription.unsubscribe()
+  // router and supabase are stable references — omitting them prevents
+  // re-subscribing on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

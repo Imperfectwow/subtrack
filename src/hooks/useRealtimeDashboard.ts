@@ -10,7 +10,6 @@ export function useRealtimeDashboard(
   const supabase = useSupabase()
   const [newEvents, setNewEvents] = useState<string[]>([])
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const channel = supabase
       .channel('dashboard-realtime')
@@ -27,6 +26,9 @@ export function useRealtimeDashboard(
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
+  // supabase is a stable singleton; callbacks are intentionally omitted to
+  // prevent re-subscribing on every parent render — callers must memoize them
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return { newEvents }
