@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { SupabaseProvider } from '@/components/providers/SupabaseProvider'
+import { QueryProvider } from '@/components/providers/QueryProvider'
 
 export const metadata: Metadata = {
   title: 'SubTrack',
@@ -18,7 +19,9 @@ export default function RootLayout({
       <body>
         <ErrorBoundary>
           <SupabaseProvider>
-            {children}
+            <QueryProvider>
+              {children}
+            </QueryProvider>
           </SupabaseProvider>
         </ErrorBoundary>
         <Toaster

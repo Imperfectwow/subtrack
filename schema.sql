@@ -324,7 +324,7 @@ begin
   order by match_score desc
   limit p_limit;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public, extensions, pg_temp;
 
 
 -- ============================================================
@@ -345,13 +345,13 @@ alter table ratings           enable row level security;
 create or replace function my_role()
 returns user_role as $$
   select role from profiles where id = auth.uid();
-$$ language sql security definer stable;
+$$ language sql security definer stable set search_path = public, pg_temp;
 
 -- פונקציה עזר: לאיזו רשות שייך המשתמש המחובר?
 create or replace function my_municipality_id()
 returns uuid as $$
   select municipality_id from profiles where id = auth.uid();
-$$ language sql security definer stable;
+$$ language sql security definer stable set search_path = public, pg_temp;
 
 
 -- MUNICIPALITIES

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import type { School } from '@/lib/types'
-import { useSupabase } from '@/components/providers/SupabaseProvider'
 
 interface AbsenceFormProps {
   schools: School[]
@@ -21,7 +21,6 @@ const inputStyle: React.CSSProperties = {
 }
 
 export default function AbsenceForm({ schools, onClose, onSaved }: AbsenceFormProps) {
-  const supabase = useSupabase()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     school_id:    schools[0]?.id ?? '',
@@ -39,20 +38,30 @@ export default function AbsenceForm({ schools, onClose, onSaved }: AbsenceFormPr
   const submit = async () => {
     if (!form.school_id || !form.teacher_name.trim()) return
     setSaving(true)
-    const school = schools.find(s => s.id === form.school_id)
-    await supabase.from('absences').insert({
-      school_id:       form.school_id,
-      municipality_id: school?.municipality_id,
-      teacher_name:    form.teacher_name.trim(),
-      subject:         form.subject,
-      grade:           form.grade,
-      absence_date:    form.absence_date,
-      start_time:      form.start_time,
-      end_time:        form.end_time || null,
-      notes:           form.notes || null,
-      status:          'open',
-      reported_via:    'app',
+
+    const res = await fetch('/api/absences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        school_id:    form.school_id,
+        teacher_name: form.teacher_name.trim(),
+        subject:      form.subject,
+        grade:        form.grade,
+        absence_date: form.absence_date,
+        start_time:   form.start_time,
+        end_time:     form.end_time,
+        notes:        form.notes,
+      }),
     })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body.error ?? 'שגיאה בשמירת ההיעדרות — נסה שנית')
+      setSaving(false)
+      return
+    }
+
+    toast.success('ההיעדרות נשמרה בהצלחה')
     setSaving(false)
     onSaved()
     onClose()

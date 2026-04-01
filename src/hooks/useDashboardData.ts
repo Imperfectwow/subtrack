@@ -1,53 +1,88 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import type { Absence, School, Assistant } from '@/lib/types'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 
+export const QUERY_KEYS = {
+  absences:   ['absences']   as const,
+  schools:    ['schools']    as const,
+  assistants: ['assistants'] as const,
+}
+
+function now() {
+  return new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+}
+
 export function useDashboardData() {
   const supabase = useSupabase()
-  const [absences, setAbsences]     = useState<Absence[]>([])
-  const [schools, setSchools]       = useState<School[]>([])
-  const [assistants, setAssistants] = useState<Assistant[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [lastUpdate, setLastUpdate] = useState('')
+  const queryClient = useQueryClient()
 
-  const now = () => new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+  const absencesQuery = useQuery<Absence[]>({
+    queryKey: QUERY_KEYS.absences,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('absences')
+        .select('*, school:schools(name)')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as Absence[]
+    },
+  })
 
-  const fetchAbsences = async () => {
-    const { data } = await supabase
-      .from('absences')
-      .select(`*, school:schools(name)`)
-      .order('created_at', { ascending: false })
-      .limit(20)
-    if (data) {
-      setAbsences(data as Absence[])
-      setLastUpdate(now())
-    }
+  const schoolsQuery = useQuery<School[]>({
+    queryKey: QUERY_KEYS.schools,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('is_active', true)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as School[]
+    },
+  })
+
+  const assistantsQuery = useQuery<Assistant[]>({
+    queryKey: QUERY_KEYS.assistants,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assistants')
+        .select('*, profile:profiles(full_name, phone, whatsapp_phone)')
+        .eq('is_available', true)
+      if (error) throw new Error(error.message)
+      return (data ?? []) as Assistant[]
+    },
+  })
+
+  // Surface per-query errors as toasts (fires once per failed query)
+  if (absencesQuery.error)   toast.error('שגיאה בטעינת היעדרויות')
+  if (schoolsQuery.error)    toast.error('שגיאה בטעינת בתי הספר')
+  if (assistantsQuery.error) toast.error('שגיאה בטעינת מסייעות')
+
+  const loading = absencesQuery.isLoading || schoolsQuery.isLoading || assistantsQuery.isLoading
+
+  const fetchAll = () => {
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.absences })
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.schools })
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.assistants })
   }
 
-  const fetchSchools = async () => {
-    const { data } = await supabase.from('schools').select('*').eq('is_active', true)
-    if (data) setSchools(data as School[])
+  const fetchAbsences = () =>
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.absences })
+
+  const fetchAssistants = () =>
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.assistants })
+
+  return {
+    absences:   absencesQuery.data   ?? [],
+    schools:    schoolsQuery.data    ?? [],
+    assistants: assistantsQuery.data ?? [],
+    loading,
+    lastUpdate: loading ? '' : now(),
+    fetchAll,
+    fetchAbsences,
+    fetchAssistants,
   }
-
-  const fetchAssistants = async () => {
-    const { data } = await supabase
-      .from('assistants')
-      .select(`*, profile:profiles(full_name, phone, whatsapp_phone)`)
-      .eq('is_available', true)
-    if (data) setAssistants(data as Assistant[])
-  }
-
-  const fetchAll = async () => {
-    setLoading(true)
-    await Promise.all([fetchAbsences(), fetchSchools(), fetchAssistants()])
-    setLoading(false)
-    setLastUpdate(now())
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchAll() }, [])
-
-  return { absences, schools, assistants, loading, lastUpdate, fetchAll, fetchAbsences, fetchAssistants }
 }

@@ -1,15 +1,25 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const ALLOWED_NEXT_PATHS = new Set(['/dashboard', '/onboarding'])
+
+function safeNext(raw: string | null): string {
+  if (!raw) return '/dashboard'
+  // Must be a relative path starting with / and no protocol or host
+  if (raw.startsWith('/') && !raw.startsWith('//') && !raw.includes(':')) {
+    // Only allow known safe destinations
+    const base = raw.split('?')[0]
+    if (ALLOWED_NEXT_PATHS.has(base) || base.startsWith('/dashboard/')) return raw
+  }
+  return '/dashboard'
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = safeNext(searchParams.get('next'))
 
   if (code) {
-    const allCookies = request.cookies.getAll()
-    console.log('[callback] cookies:', allCookies.map(c => c.name))
-
     const response = NextResponse.redirect(`${origin}${next}`)
 
     const supabase = createServerClient(
@@ -27,8 +37,7 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    console.log('[callback] exchange result:', { user: data?.user?.email, error: error?.message })
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       return response
     }

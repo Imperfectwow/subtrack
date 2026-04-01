@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { FONT, CSS_GLOBALS, statusColors } from '@/lib/constants/dashboardConstants'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Header from '@/components/dashboard/Header'
@@ -50,9 +51,16 @@ export default function AssistantDashboard() {
   useEffect(() => { fetchAll() }, [])
 
   const respond = async (assignmentId: string, status: 'accepted' | 'declined') => {
-    await supabase.from('assignments')
-      .update({ status, responded_at: new Date().toISOString() })
-      .eq('id', assignmentId)
+    const res = await fetch(`/api/assignments/${assignmentId}/respond`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body.error ?? 'שגיאה בעדכון השיבוץ')
+      return
+    }
     setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, status } : a))
   }
 
@@ -60,7 +68,16 @@ export default function AssistantDashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const next = !isAvailable
-    await supabase.from('assistants').update({ is_available: next }).eq('id', user.id)
+    const res = await fetch(`/api/assistants/${user.id}/availability`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_available: next }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body.error ?? 'שגיאה בעדכון הזמינות')
+      return
+    }
     setIsAvailable(next)
   }
 

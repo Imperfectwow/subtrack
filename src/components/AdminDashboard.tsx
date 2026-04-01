@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 import { FONT, CSS_GLOBALS, statusColors } from '@/lib/constants/dashboardConstants'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
 import Header from '@/components/dashboard/Header'
@@ -55,7 +56,16 @@ export default function AdminDashboard() {
   useEffect(() => { fetchAll() }, [])
 
   const toggleAvailability = async (id: string, current: boolean) => {
-    await supabase.from('assistants').update({ is_available: !current }).eq('id', id)
+    const res = await fetch(`/api/assistants/${id}/availability`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_available: !current }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body.error ?? 'שגיאה בעדכון הזמינות')
+      return
+    }
     setAssistants(prev => prev.map(a => a.id === id ? { ...a, is_available: !current } : a))
   }
 
