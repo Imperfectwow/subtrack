@@ -14,13 +14,21 @@ function safeNext(raw: string | null): string {
   return '/dashboard'
 }
 
+// Use NEXT_PUBLIC_SITE_URL so the post-auth redirect always lands on the
+// correct origin — regardless of whether Supabase forwarded the code to
+// http:// or https:// localhost (which has no SSL cert).
+function siteOrigin(requestOrigin: string): string {
+  return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? requestOrigin
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = safeNext(searchParams.get('next'))
+  const base = siteOrigin(origin)
 
   if (code) {
-    const response = NextResponse.redirect(`${origin}${next}`)
+    const response = NextResponse.redirect(`${base}${next}`)
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,5 +51,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
+  return NextResponse.redirect(`${base}/login?error=auth_callback_failed`)
 }
