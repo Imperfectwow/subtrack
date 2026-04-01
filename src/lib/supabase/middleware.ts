@@ -30,6 +30,7 @@ export async function updateSession(request: NextRequest) {
 
   // אם לא מחובר ומנסה לגשת לעמוד מוגן — הפנה ל-login
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+    || request.nextUrl.pathname.startsWith('/auth/')
   const isPublicPage = request.nextUrl.pathname === '/'
 
   if (!user && !isAuthPage && !isPublicPage) {

@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
+  const [isSignUp, setIsSignUp] = useState(false)
 
   const router   = useRouter()
   const supabase = createClient()
@@ -18,6 +19,18 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) {
+        setError('שגיאה ביצירת החשבון — נסה שנית')
+        setLoading(false)
+        return
+      }
+      router.push('/dashboard')
+      router.refresh()
+      return
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
@@ -26,7 +39,6 @@ export default function LoginPage() {
       return
     }
 
-    // הפנה לפי תפקיד — נרחיב את זה אחר כך
     router.push('/dashboard')
     router.refresh()
   }
@@ -87,7 +99,7 @@ export default function LoginPage() {
           padding: 32,
         }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', marginBottom: 24 }}>
-            כניסה למערכת
+            {isSignUp ? 'יצירת חשבון' : 'כניסה למערכת'}
           </h2>
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -162,7 +174,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
       },
     })
     if (error) setError('שגיאה בהתחברות עם Google')
@@ -192,7 +204,7 @@ export default function LoginPage() {
   <span style={{ fontSize: 12, color: '#475569' }}>או</span>
   <div style={{ flex: 1, height: 1, background: '#1e3a5f' }} />
 </div>
-            {/* כפתור כניסה */}
+            {/* כפתור כניסה / הרשמה */}
             <button
               type="submit"
               disabled={loading}
@@ -207,10 +219,25 @@ export default function LoginPage() {
                 marginTop: 4,
               }}
             >
-              {loading ? 'מתחבר...' : 'כניסה'}
+              {loading ? (isSignUp ? 'יוצר חשבון...' : 'מתחבר...') : (isSignUp ? 'הרשמה' : 'כניסה')}
             </button>
 
           </form>
+
+          <p style={{ textAlign: 'center', fontSize: 13, color: '#475569', marginTop: 20 }}>
+            {isSignUp ? 'כבר יש לך חשבון? ' : 'אין לך חשבון עדיין? '}
+            <button
+              type="button"
+              onClick={() => { setIsSignUp(s => !s); setError(null) }}
+              style={{
+                background: 'none', border: 'none', color: '#3b82f6',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Heebo, sans-serif', padding: 0,
+              }}
+            >
+              {isSignUp ? 'כניסה' : 'הרשמה'}
+            </button>
+          </p>
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 12, color: '#334155', marginTop: 24 }}>
