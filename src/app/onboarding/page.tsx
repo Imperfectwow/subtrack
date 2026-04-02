@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useSupabase } from '@/components/providers/SupabaseProvider'
@@ -29,7 +29,7 @@ interface InviteDetails {
 // saving      — POST /api/profiles in flight
 type PageState = 'loading' | 'no_profile' | 'wrong_session' | 'invalid_token' | 'ready' | 'saving'
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const supabase     = useSupabase()
@@ -183,7 +183,7 @@ export default function OnboardingPage() {
     </div>
   )
 
-  // ── Onboarding form ────────────────────────────────────────────────────────
+  // ── Onboarding form ─────────────────────────────────────────────────────
   const canSubmit = pageState === 'ready' && form.full_name.trim().length >= 2 && form.phone.trim().length >= 9
 
   return (
@@ -286,5 +286,13 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingContent />
+    </Suspense>
   )
 }
