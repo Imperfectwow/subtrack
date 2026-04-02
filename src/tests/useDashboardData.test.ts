@@ -23,8 +23,10 @@ function makeChain() {
 }
 
 function wrapper(queryClient: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: queryClient }, children)
+  function QueryClientWrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(QueryClientProvider, { client: queryClient }, children)
+  }
+  return QueryClientWrapper
 }
 
 describe('useDashboardData', () => {

@@ -528,10 +528,16 @@ $$;
 -- ============================================================
 
 -- רשויות
+-- ON CONFLICT (slug): slug has the UNIQUE constraint that fires first when re-seeding.
+-- DO UPDATE ensures the row's id is migrated to the RFC 4122-compliant UUID even if
+-- the old non-compliant UUID (11111111-0000-...) is already in the database.
 insert into municipalities (id, name, slug, contact_email) values
   ('00000000-0000-4000-8000-000000000001', 'עיריית תל אביב-יפו', 'tel-aviv', 'edu@tlv.gov.il'),
   ('00000000-0000-4000-8000-000000000002', 'עיריית חיפה', 'haifa', 'edu@haifa.gov.il')
-on conflict (id) do nothing;
+on conflict (slug) do update
+  set id           = excluded.id,
+      name         = excluded.name,
+      contact_email = excluded.contact_email;
 
 -- בתי ספר (עם קואורדינטות אמיתיות)
 insert into schools (municipality_id, name, address, location) values
