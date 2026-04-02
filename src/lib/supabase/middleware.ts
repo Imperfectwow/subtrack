@@ -32,8 +32,9 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
     || request.nextUrl.pathname.startsWith('/auth/')
   const isPublicPage = request.nextUrl.pathname === '/'
+  const isApiRoute   = request.nextUrl.pathname.startsWith('/api/')
 
-  if (!user && !isAuthPage && !isPublicPage) {
+  if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
     const url = request.nextUrl.clone()
     const next = request.nextUrl.pathname + request.nextUrl.search
     url.pathname = '/login'
