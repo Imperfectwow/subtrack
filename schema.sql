@@ -459,12 +459,18 @@ create policy "see ratings in municipality" on ratings for select using (my_role
 create policy "coordinator rates"           on ratings for insert with check (my_role() in ('coordinator', 'admin'));
 
 -- INVITATIONS
-drop policy if exists "read own municipality invitations" on invitations;
-drop policy if exists "super_admin sees all invitations"  on invitations;
-drop policy if exists "create invitations"                on invitations;
-create policy "read own municipality invitations" on invitations for select to authenticated using (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator'));
-create policy "super_admin sees all invitations"  on invitations for select to authenticated using (my_role() = 'super_admin');
-create policy "create invitations"                on invitations for insert to authenticated with check (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator'));
+drop policy if exists "read own municipality invitations"  on invitations;
+drop policy if exists "super_admin sees all invitations"   on invitations;
+drop policy if exists "create invitations"                 on invitations;
+drop policy if exists "super_admin creates invitations"    on invitations;
+drop policy if exists "admin revokes invitations"          on invitations;
+drop policy if exists "super_admin revokes invitations"    on invitations;
+create policy "read own municipality invitations"  on invitations for select to authenticated using (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator'));
+create policy "super_admin sees all invitations"   on invitations for select to authenticated using (my_role() = 'super_admin');
+create policy "create invitations"                 on invitations for insert to authenticated with check (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator'));
+create policy "super_admin creates invitations"    on invitations for insert to authenticated with check (my_role() = 'super_admin');
+create policy "admin revokes invitations"          on invitations for delete to authenticated using (municipality_id = my_municipality_id() and my_role() in ('admin', 'coordinator') and used_at is null);
+create policy "super_admin revokes invitations"    on invitations for delete to authenticated using (my_role() = 'super_admin' and used_at is null);
 
 
 -- ============================================================

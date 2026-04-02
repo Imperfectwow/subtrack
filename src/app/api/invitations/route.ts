@@ -4,14 +4,18 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import type { UserRole } from '@/lib/types'
 
-const INVITABLE_ROLES: UserRole[] = ['assistant', 'coordinator']
-
 const createSchema = z.object({
   email: z.string().email('כתובת אימייל לא תקינה'),
   role:  z.enum(['assistant', 'coordinator'], { message: 'תפקיד לא תקין' }),
 })
 
-// POST /api/invitations — admin / coordinator creates an invite link
+const superAdminCreateSchema = z.object({
+  email:           z.string().email('כתובת אימייל לא תקינה'),
+  role:            z.enum(['assistant', 'coordinator', 'admin'], { message: 'תפקיד לא תקין' }),
+  municipality_id: z.string().uuid('מזהה רשות לא תקין'),
+})
+
+// POST /api/invitations — admin / coordinator / super_admin creates an invite link
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
@@ -20,7 +24,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'לא מורשה' }, { status: 401 })
   }
 
-  // Must have a profile with an invite-capable role
   const { data: profile } = await supabase
     .from('profiles')
     .select('role, municipality_id')
@@ -36,25 +39,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'גוף הבקשה אינו JSON תקין' }, { status: 400 })
   }
 
-  const parsed = createSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'נתונים לא תקינים', details: parsed.error.flatten().fieldErrors },
-      { status: 422 },
-    )
+  let email: string
+  let role: UserRole
+  let municipality_id: string
+
+  if (profile.role === 'super_admin') {
+    const parsed = superAdminCreateSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'נתונים לא תקינים', details: parsed.error.flatten().fieldErrors },
+        { status: 422 },
+      )
+    }
+    email           = parsed.data.email
+    role            = parsed.data.role as UserRole
+    municipality_id = parsed.data.municipality_id
+  } else {
+    const parsed = createSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'נתונים לא תקינים', details: parsed.error.flatten().fieldErrors },
+        { status: 422 },
+      )
+    }
+    email           = parsed.data.email
+    role            = parsed.data.role as UserRole
+    municipality_id = profile.municipality_id as string
+
+    if (profile.role === 'coordinator' && role !== 'assistant') {
+      return NextResponse.json({ error: 'רכז יכול להזמין מסייעות בלבד' }, { status: 403 })
+    }
   }
-
-  const { email, role } = parsed.data
-
-  // Coordinators can only invite assistants
-  if (profile.role === 'coordinator' && role !== 'assistant') {
-    return NextResponse.json({ error: 'רכז יכול להזמין מסייעות בלבד' }, { status: 403 })
-  }
-
-  void INVITABLE_ROLES // suppress lint
 
   const token = randomBytes(32).toString('hex')
-  const municipality_id = profile.municipality_id as string
 
   const { data: invite, error: insertError } = await supabase
     .from('invitations')
@@ -78,7 +95,8 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/invitations — list pending invitations for the caller's municipality
-export async function GET() {
+// Super admin can pass ?municipality_id= to filter by a specific municipality
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -86,12 +104,33 @@ export async function GET() {
     return NextResponse.json({ error: 'לא מורשה' }, { status: 401 })
   }
 
-  const { data, error } = await supabase
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, municipality_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || !['admin', 'coordinator', 'super_admin'].includes(profile.role)) {
+    return NextResponse.json({ error: 'אין הרשאה לצפות בהזמנות' }, { status: 403 })
+  }
+
+  let query = supabase
     .from('invitations')
-    .select('id, email, role, expires_at, used_at, created_at')
+    .select('id, token, email, role, municipality_id, expires_at, used_at, created_at')
     .is('used_at', null)
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false })
+
+  if (profile.role === 'super_admin') {
+    const municipalityId = new URL(request.url).searchParams.get('municipality_id')
+    if (municipalityId) {
+      query = query.eq('municipality_id', municipalityId)
+    }
+  } else {
+    query = query.eq('municipality_id', profile.municipality_id as string)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return NextResponse.json({ error: 'שגיאה בטעינת ההזמנות' }, { status: 500 })
