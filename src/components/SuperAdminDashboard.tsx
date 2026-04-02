@@ -38,8 +38,9 @@ interface PendingInvite {
 }
 
 const inviteSchema = z.object({
-  email: z.string().email('כתובת אימייל לא תקינה'),
-  role:  z.enum(['assistant', 'coordinator', 'admin']),
+  email:           z.string().email('כתובת אימייל לא תקינה'),
+  role:            z.enum(['assistant', 'coordinator', 'admin'], { message: 'תפקיד לא תקין' }),
+  municipality_id: z.string().uuid('מזהה רשות לא תקין — נסה לרענן את הדף'),
 })
 
 const roleLabel: Record<string, string> = {
@@ -151,7 +152,11 @@ export default function SuperAdminDashboard() {
   const submitInvite = async () => {
     if (!inviteModal) return
 
-    const validation = inviteSchema.safeParse({ email: inviteEmail.trim(), role: inviteRole })
+    const validation = inviteSchema.safeParse({
+      email:           inviteEmail.trim(),
+      role:            inviteRole,
+      municipality_id: inviteModal.id,
+    })
     if (!validation.success) {
       setInviteErrors(validation.error.issues.map(e => e.message))
       return
@@ -173,7 +178,12 @@ export default function SuperAdminDashboard() {
     setInviteLoading(false)
 
     if (!res.ok) {
-      toast.error(body.error ?? 'שגיאה ביצירת ההזמנה')
+      if (res.status === 422 && body.details) {
+        const fieldErrors = Object.values(body.details as Record<string, string[]>).flat()
+        setInviteErrors(fieldErrors.length > 0 ? fieldErrors : [body.error ?? 'נתונים לא תקינים'])
+      } else {
+        toast.error(body.error ?? 'שגיאה ביצירת ההזמנה')
+      }
       return
     }
 

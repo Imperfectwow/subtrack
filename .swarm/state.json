@@ -1,6 +1,6 @@
 {
-  "swarmId": "swarm-mngplgaw",
-  "objective": "Wrap all useSearchParams() calls in Suspense boundaries in src/app/onboarding/page.tsx to fix the Next.js production build crash.",
+  "swarmId": "swarm-mngqiegs",
+  "objective": "Increase unit test coverage to >12% by adding tests for 'superAdminCreateSchema' and 'use_invitation' logic. Target 100% coverage on these specific functions to bridge the 0.89% global gap.",
   "strategy": "development",
   "status": "initialized",
   "agents": 8,
@@ -36,6 +36,6 @@
       "purpose": "Code review"
     }
   ],
-  "startedAt": "2026-04-02T00:00:53.963Z",
+  "startedAt": "2026-04-02T00:26:31.232Z",
   "parallel": true
 }
