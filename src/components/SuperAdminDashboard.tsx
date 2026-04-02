@@ -137,6 +137,10 @@ export default function SuperAdminDashboard() {
 
   const openInviteModal = (e: React.MouseEvent, muni: MunicipalityRow) => {
     e.stopPropagation()
+    // Defensive: log the id so UUID issues are visible immediately in DevTools
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[InviteModal] opening for municipality:', { id: muni.id, name: muni.name })
+    }
     setInviteModal({ id: muni.id, name: muni.name })
     setInviteEmail('')
     setInviteRole('coordinator')
@@ -152,26 +156,38 @@ export default function SuperAdminDashboard() {
   const submitInvite = async () => {
     if (!inviteModal) return
 
-    const validation = inviteSchema.safeParse({
+    const payload = {
       email:           inviteEmail.trim(),
       role:            inviteRole,
       municipality_id: inviteModal.id,
-    })
+    }
+
+    const validation = inviteSchema.safeParse(payload)
     if (!validation.success) {
+      // Log each failing field with its path so the bad value is visible in DevTools
+      console.error('[POST /api/invitations] client-side validation failed:')
+      for (const issue of validation.error.issues) {
+        console.error(`  field "${issue.path.join('.')}" = ${JSON.stringify(payload[issue.path[0] as keyof typeof payload])} → ${issue.message}`)
+      }
       setInviteErrors(validation.error.issues.map(e => e.message))
       return
     }
     setInviteErrors([])
     setInviteLoading(true)
 
+    const requestBody = {
+      email:           inviteEmail.trim().toLowerCase(),
+      role:            inviteRole,
+      municipality_id: inviteModal.id,
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[POST /api/invitations] sending:', requestBody)
+    }
+
     const res = await fetch('/api/invitations', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email:           inviteEmail.trim().toLowerCase(),
-        role:            inviteRole,
-        municipality_id: inviteModal.id,
-      }),
+      body: JSON.stringify(requestBody),
     })
 
     const body = await res.json().catch(() => ({}))
@@ -179,7 +195,13 @@ export default function SuperAdminDashboard() {
 
     if (!res.ok) {
       if (res.status === 422 && body.details) {
-        const fieldErrors = Object.values(body.details as Record<string, string[]>).flat()
+        const details = body.details as Record<string, string[]>
+        // Log each server-side Zod path+message so the exact rejection is visible
+        console.error('[POST /api/invitations] server 422 — field errors:')
+        for (const [path, messages] of Object.entries(details)) {
+          console.error(`  field "${path}": ${messages.join(', ')}`)
+        }
+        const fieldErrors = Object.values(details).flat()
         setInviteErrors(fieldErrors.length > 0 ? fieldErrors : [body.error ?? 'נתונים לא תקינים'])
       } else {
         toast.error(body.error ?? 'שגיאה ביצירת ההזמנה')
