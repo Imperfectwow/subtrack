@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
 const createAbsenceSchema = z.object({
-  school_id:    z.string().uuid('מזהה בית ספר לא תקין'),
+  school_id:    z.string().uuid({ message: 'מזהה בית ספר לא תקין' }),
   teacher_name: z.string().min(2, 'שם המורה חייב להכיל לפחות 2 תווים').max(100),
   subject:      z.string().min(1),
   grade:        z.string().min(1),

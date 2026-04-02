@@ -40,7 +40,7 @@ interface PendingInvite {
 const inviteSchema = z.object({
   email:           z.string().email('כתובת אימייל לא תקינה'),
   role:            z.enum(['assistant', 'coordinator', 'admin'], { message: 'תפקיד לא תקין' }),
-  municipality_id: z.string().uuid('מזהה רשות לא תקין — נסה לרענן את הדף'),
+  municipality_id: z.string().uuid({ message: 'מזהה רשות לא תקין — נסה לרענן את הדף' }),
 })
 
 const roleLabel: Record<string, string> = {

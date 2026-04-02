@@ -12,7 +12,7 @@ const createSchema = z.object({
 const superAdminCreateSchema = z.object({
   email:           z.string().email('כתובת אימייל לא תקינה'),
   role:            z.enum(['assistant', 'coordinator', 'admin'], { message: 'תפקיד לא תקין' }),
-  municipality_id: z.string().uuid('מזהה רשות לא תקין'),
+  municipality_id: z.string().uuid({ message: 'מזהה רשות לא תקין' }),
 })
 
 // POST /api/invitations — admin / coordinator / super_admin creates an invite link
